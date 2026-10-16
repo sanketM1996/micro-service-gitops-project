@@ -39,7 +39,14 @@ jobs:
 
       - name: Run tests
         working-directory: code/${{ matrix.service }}
-        run: npm test --if-present
+        run: |
+          TEST_SCRIPT=$(node -p "require('./package.json').scripts?.test || ''")
+
+          if [ -z "$TEST_SCRIPT" ] || echo "$TEST_SCRIPT" | grep -q "no test specified"; then
+          echo "No tests configured for ${{ matrix.service }}. Skipping."
+          else
+           npm test
+           fi
 
       - name: Build project
         working-directory: code/${{ matrix.service }}
