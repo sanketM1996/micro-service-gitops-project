@@ -10,6 +10,8 @@ on:
       - 'code/auth-service/**'
       - 'code/api-gateway/**'
       - 'code/client/**'
+      - 'infra-gitops/**'
+      - 'k8s/**'
       - '.github/workflows/**'
 
 jobs:
@@ -55,7 +57,7 @@ jobs:
         run: pip install checkov
       - name: Run Checkov Terraform scan
         run: |
-          checkov -d . \
+          checkov -d infra-gitops/ \
             --framework terraform \
             --output json > checkov-terraform-report.json || true
       - name: Upload Checkov Terraform report
@@ -80,7 +82,7 @@ jobs:
         run: pip install checkov
       - name: Run Checkov Kubernetes scan
         run: |
-          checkov -d . \
+          checkov -d k8s/ \
             --framework kubernetes \
             --output json > checkov-k8s-report.json || true
       - name: Upload Checkov Kubernetes report
