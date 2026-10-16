@@ -1,1 +1,46 @@
 
+name: CI/CD
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'code/todo-service/**'
+      - 'code/auth-service/**'
+      - 'code/api-gateway/**'
+      - 'code/client/**'
+      - '.github/workflows/**'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        service:
+          - todo-service
+          - auth-service
+          - api-gateway
+          - client
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        working-directory: code/${{ matrix.service }}
+        run: npm install
+
+      - name: Run tests
+        working-directory: code/${{ matrix.service }}
+        run: npm test --if-present
+
+      - name: Build project
+        working-directory: code/${{ matrix.service }}
+        run: npm run build --if-present
