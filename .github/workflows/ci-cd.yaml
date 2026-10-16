@@ -222,3 +222,65 @@ jobs:
       - name: Run lint
         run: npm run lint --if-present
         continue-on-error: true
+
+  # Client Test
+  client-test:
+    name: Client Test
+    runs-on: ubuntu-latest
+    needs: lint
+
+    defaults:
+      run:
+        working-directory: code/client
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: code/client/package-lock.json
+
+      - name: Install client dependencies
+        run: npm ci
+
+      - name: Run client tests
+        run: npm test --if-present
+
+  # Backend Service Tests
+  server-test:
+    name: Server Test - ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    needs: lint
+
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - todo-service
+          - auth-service
+          - api-gateway
+
+    defaults:
+      run:
+        working-directory: code/${{ matrix.service }}
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: code/${{ matrix.service }}/package-lock.json
+
+      - name: Install server dependencies
+        run: npm ci
+
+      - name: Run server tests
+        run: npm test --if-present
