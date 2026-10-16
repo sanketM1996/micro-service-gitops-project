@@ -331,6 +331,7 @@ jobs:
         id: quality-gate
         uses: sonarsource/sonarqube-quality-gate-action@master
         with:
+          scanMetadataReportFile: code/${{ matrix.service }}/.scannerwork/report-task.txt
           pollingTimeoutSec: 600
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
