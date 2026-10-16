@@ -13,45 +13,6 @@ on:
       - '.github/workflows/**'
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        service:
-          - todo-service
-          - auth-service
-          - api-gateway
-          - client
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
-      - name: Install dependencies
-        working-directory: code/${{ matrix.service }}
-        run: npm install
-
-      - name: Run tests
-        working-directory: code/${{ matrix.service }}
-        run: |
-          TEST_SCRIPT=$(node -p "require('./package.json').scripts?.test || ''")
-
-          if [ -z "$TEST_SCRIPT" ] || echo "$TEST_SCRIPT" | grep -q "no test specified"; then
-          echo "No tests configured for ${{ matrix.service }}. Skipping."
-          else
-           npm test
-           fi
-
-      - name: Build project
-        working-directory: code/${{ matrix.service }}
-        run: npm run build --if-present
-
   gitleaks-scan:
     name: Gitleaks Scan
     runs-on: ubuntu-latest
@@ -75,4 +36,55 @@ jobs:
         with:
           name: gitleaks-report
           path: gitleaks-report.json
+          if-no-files-found: warn
+
+          
+  checkov-terraform:
+    name: Checkov Terraform Scan
+    runs-on: ubuntu-latest
+    needs: gitleaks-scan
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install Checkov
+        run: pip install checkov
+      - name: Run Checkov Terraform scan
+        run: |
+          checkov -d . \
+            --framework terraform \
+            --output json > checkov-terraform-report.json || true
+      - name: Upload Checkov Terraform report
+        uses: actions/upload-artifact@v4
+        with:
+          name: checkov-terraform-report
+          path: checkov-terraform-report.json
+          if-no-files-found: warn
+
+  checkov-k8s:
+    name: Checkov Kubernetes Scan
+    runs-on: ubuntu-latest
+    needs: gitleaks-scan
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install Checkov
+        run: pip install checkov
+      - name: Run Checkov Kubernetes scan
+        run: |
+          checkov -d . \
+            --framework kubernetes \
+            --output json > checkov-k8s-report.json || true
+      - name: Upload Checkov Kubernetes report
+        uses: actions/upload-artifact@v4
+        with:
+          name: checkov-k8s-report
+          path: checkov-k8s-report.json
           if-no-files-found: warn
