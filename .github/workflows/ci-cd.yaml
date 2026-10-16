@@ -114,8 +114,9 @@ jobs:
           path: checkov-dockerfile-report.json
           if-no-files-found: warn
 # trivy scan for all services
+  
   trivy-scan:
-    name: Trivy Scan - All Services
+    name: Trivy FS Scan - ${{ matrix.service }}
     runs-on: ubuntu-latest
     needs: gitleaks-scan
 
@@ -132,20 +133,49 @@ jobs:
       - name: Checkout source code
         uses: actions/checkout@v4
 
-      - name: Run Trivy filesystem scan
-        uses: aquasecurity/trivy-action@v0.36.0
+      - name: Install Trivy
+        uses: aquasecurity/setup-trivy@v0.2.6
         with:
-          scan-type: fs
-          scan-ref: code/${{ matrix.service }}
-          scanners: vuln,secret,misconfig
-          format: json
-          output: trivy-${{ matrix.service }}-report.json
-          exit-code: '0'
+          version: latest
+          cache: true
 
-      - name: Upload Trivy report
+      - name: Verify Trivy installation
+        run: |
+          trivy --version
+          which trivy
+
+      - name: Run Trivy FS scan (JSON)
+        run: |
+          trivy fs "code/${{ matrix.service }}" \
+            --format json \
+            --output "${{ matrix.service }}-trivy-fs-report.json" \
+            --scanners vuln,secret,misconfig \
+            --severity HIGH,CRITICAL \
+            --ignore-unfixed \
+            --exit-code 0
+
+      - name: Run Trivy FS scan (TABLE)
+        run: |
+          trivy fs "code/${{ matrix.service }}" \
+            --format table \
+            --scanners vuln,secret,misconfig \
+            --severity HIGH,CRITICAL \
+            --ignore-unfixed \
+            --exit-code 0 \
+            > "${{ matrix.service }}-trivy-fs-report.txt"
+
+      - name: Upload Trivy JSON report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: trivy-${{ matrix.service }}-report
-          path: trivy-${{ matrix.service }}-report.json
+          name: ${{ matrix.service }}-trivy-fs-json-report
+          path: ${{ matrix.service }}-trivy-fs-report.json
+          if-no-files-found: warn
+
+      - name: Upload Trivy TABLE report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.service }}-trivy-fs-table-report
+          path: ${{ matrix.service }}-trivy-fs-report.txt
           if-no-files-found: warn
