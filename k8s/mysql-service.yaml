@@ -1,31 +1,93 @@
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: todo-app
+data:
+  DB_HOST: "mysql"
+  DB_PORT: "3306"
+  AUTH_DB_NAME: "todo_auth_db"
+  TODO_DB_NAME: "todo_service_db"
+  MYSQL_USER: "todo_user"
+  PORT_AUTH: "4001"
+  PORT_TODO: "4002"
+  PORT_GATEWAY: "4000"
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mysql-initdb-config
+  namespace: todo-app
+data:
+  init.sql: |
+    CREATE DATABASE IF NOT EXISTS todo_auth_db;
+    CREATE DATABASE IF NOT EXISTS todo_service_db;
+
+    CREATE USER IF NOT EXISTS 'todo_user'@'%'
+    IDENTIFIED BY 'root';
+
+    GRANT ALL PRIVILEGES ON todo_auth_db.*
+    TO 'todo_user'@'%';
+
+    GRANT ALL PRIVILEGES ON todo_service_db.*
+    TO 'todo_user'@'%';
+
+    USE todo_auth_db;
+
+    CREATE TABLE IF NOT EXISTS users (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      name VARCHAR(255) NOT NULL,
+      email VARCHAR(255) NOT NULL UNIQUE,
+      password VARCHAR(255) NOT NULL,
+      role VARCHAR(50) DEFAULT 'User',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    USE todo_service_db;
+
+    CREATE TABLE IF NOT EXISTS todos (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      title VARCHAR(255) NOT NULL,
+      description TEXT,
+      status VARCHAR(50) NOT NULL DEFAULT 'Pending',
+      user_id INT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: app-secrets
+  namespace: todo-app
+type: Opaque
+stringData:
+  MYSQL_ROOT_PASSWORD: "root"
+  MYSQL_PASSWORD: "root"
+  JWT_SECRET: "sanket"
+
+---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: mysql
   namespace: todo-app
-
 spec:
-  serviceName: "mysql"
+  serviceName: mysql
   replicas: 1
-
   selector:
     matchLabels:
       app: mysql
-
   template:
     metadata:
       labels:
         app: mysql
-
     spec:
-
-      # ==========================================
-      # MySQL Container
-      # ==========================================
       containers:
         - name: mysql
           image: mysql:8.0
-
           env:
             - name: MYSQL_ROOT_PASSWORD
               valueFrom:
@@ -55,35 +117,23 @@ spec:
             - containerPort: 3306
               name: mysql
 
-          # ======================================
-          # Volume Mounts
-          # ======================================
           volumeMounts:
-            # Persistent MySQL data
             - name: mysql-persistent-storage
               mountPath: /var/lib/mysql
 
-            # Initialization SQL
             - name: mysql-initdb
               mountPath: /docker-entrypoint-initdb.d/init.sql
               subPath: init.sql
               readOnly: true
 
-      # ==========================================
-      # ConfigMap Volume
-      # ==========================================
       volumes:
         - name: mysql-initdb
           configMap:
             name: mysql-initdb-config
 
-  # ============================================
-  # Persistent Volume
-  # ============================================
   volumeClaimTemplates:
     - metadata:
         name: mysql-persistent-storage
-
       spec:
         accessModes:
           - ReadWriteOnce
@@ -98,13 +148,10 @@ kind: Service
 metadata:
   name: mysql
   namespace: todo-app
-
 spec:
+  clusterIP: None
   ports:
     - port: 3306
       targetPort: 3306
-
   selector:
     app: mysql
-
-  clusterIP: None
