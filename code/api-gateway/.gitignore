@@ -1,0 +1,81 @@
+
+# Dependencies
+node_modules/
+jspm_packages/
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+!.env.sample
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage reports
+coverage/
+.nyc_output/
+
+# Build output
+dist/
+build/
+out/
+
+# Cache
+.cache/
+.npm/
+.eslintcache
+.parcel-cache/
+.turbo/
+
+# Testing
+test-results/
+playwright-report/
+
+# IDE and editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Operating system files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+
+# TypeScript
+*.tsbuildinfo
+
+# Docker
+.docker/
+
+# Security scan reports
+trivy-report.json
+trivy-report.txt
+npm-audit-report.json
+dependency-check-report.html
+
+# Local configuration
+config.local.js
+config.local.json
+
+# Optional: generated files
+*.bak
+*.orig

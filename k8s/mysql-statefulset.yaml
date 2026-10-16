@@ -1,0 +1,110 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mysql
+  namespace: todo-app
+
+spec:
+  serviceName: "mysql"
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: mysql
+
+  template:
+    metadata:
+      labels:
+        app: mysql
+
+    spec:
+
+      # ==========================================
+      # MySQL Container
+      # ==========================================
+      containers:
+        - name: mysql
+          image: mysql:8.0
+
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: MYSQL_ROOT_PASSWORD
+
+            - name: MYSQL_DATABASE
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: AUTH_DB_NAME
+
+            - name: MYSQL_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: MYSQL_USER
+
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: MYSQL_PASSWORD
+
+          ports:
+            - containerPort: 3306
+              name: mysql
+
+          # ======================================
+          # Volume Mounts
+          # ======================================
+          volumeMounts:
+            # Persistent MySQL data
+            - name: mysql-persistent-storage
+              mountPath: /var/lib/mysql
+
+            # Initialization SQL
+            - name: mysql-initdb
+              mountPath: /docker-entrypoint-initdb.d/init.sql
+              subPath: init.sql
+              readOnly: true
+
+      # ==========================================
+      # ConfigMap Volume
+      # ==========================================
+      volumes:
+        - name: mysql-initdb
+          configMap:
+            name: mysql-initdb-config
+
+  # ============================================
+  # Persistent Volume
+  # ============================================
+  volumeClaimTemplates:
+    - metadata:
+        name: mysql-persistent-storage
+
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: gp2
+        resources:
+          requests:
+            storage: 5Gi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql
+  namespace: todo-app
+
+spec:
+  ports:
+    - port: 3306
+      targetPort: 3306
+
+  selector:
+    app: mysql
+
+  clusterIP: None

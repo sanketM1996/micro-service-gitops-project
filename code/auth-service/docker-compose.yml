@@ -1,0 +1,60 @@
+version: "3.8"
+
+services:
+  mysql_db:
+    image: mysql:8.0
+    container_name: auth_mysql_container
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: todo_auth_db
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - app-network
+    # Add a health check to verify MySQL is ready
+    healthcheck:
+      test: [
+          "CMD",
+          "mysqladmin",
+          "ping",
+          "-h",
+          "localhost",
+          "-u",
+          "root",
+          "-proot",
+        ] # Or use root password
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  auth_app:
+    build: .
+    container_name: auth_service_container
+    restart: always
+    ports:
+      - "4001:4001"
+    environment:
+      - PORT=4001
+      - DB_HOST=mysql_db
+      - DB_USER=root
+      - DB_PASSWORD=root
+      - DB_NAME=todo_auth_db
+      - DB_PORT=3306
+      - JWT_SECRET=sanket
+      - JWT_EXPIRES_IN=1d
+    depends_on:
+      mysql_db:
+        condition: service_healthy # Waits until MySQL passes the health check
+    networks:
+      - app-network
+
+volumes:
+  mysql_data:
+
+networks:
+  app-network:
+    driver: bridge

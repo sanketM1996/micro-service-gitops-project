@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: todo-app
+data:
+  DB_HOST: "mysql"
+  DB_PORT: "3306"
+  AUTH_DB_NAME: "todo_auth_db"
+  TODO_DB_NAME: "todo_service_db"
+  MYSQL_USER: "todo_user"
+  PORT_AUTH: "4001"
+  PORT_TODO: "4002"
+  PORT_GATEWAY: "4000"
