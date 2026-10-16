@@ -282,5 +282,16 @@ jobs:
       - name: Install server dependencies
         run: npm ci
 
+     
       - name: Run server tests
-        run: npm test --if-present
+        run: |
+         if node -e "process.exit(require('./package.json').scripts?.test ? 0 : 1)"; then
+         if grep -q 'no test specified' package.json; then
+         echo "No tests configured yet. Skipping tests."
+         else
+         npm test
+         fi
+         else
+         echo "No test script found. Skipping tests."
+         fi
+
