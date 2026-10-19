@@ -193,3 +193,152 @@ jobs:
         run: |
           echo "Service: client"
           echo "Quality Gate status: ${{ steps.quality-gate.outputs.quality-gate-status }}"
+
+ 
+  #* =================================*
+  #* Stage: Build React application
+  #* =================================*
+  client-build:
+    name: Client Build
+    runs-on: ubuntu-latest
+    needs: client-test
+
+    defaults:
+      run:
+        working-directory: code/client
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: code/client/package-lock.json
+
+      - name: Install client dependencies
+        run: npm ci
+
+      - name: Build client
+        run: npm run build
+
+  #* =================================*
+  #* Stage: Docker Build, Scan and Push
+  #* =================================*
+  docker:
+    name: Client Docker Build, Scan & Push
+    runs-on: ubuntu-latest
+    needs: client-build
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      #* Login to Docker Hub
+      - name: Login to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      #* Configure Docker Buildx
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      #* =================================*
+      #* Stage: Build Client Docker Image
+      #* =================================*
+      - name: Build client Docker image
+        uses: docker/build-push-action@v7
+        with:
+          context: ./code/client
+          file: ./code/client/Dockerfile
+          load: true
+          push: false
+          build-args: |
+            VITE_API_BASE_URL=${{ vars.VITE_API_BASE_URL }}
+          tags: sanketmahajan/micro-service-mernapp:client
+
+      #* =================================*
+      #* Stage: Trivy Image Security Scan
+      #* =================================*
+      - name: Install Trivy
+        uses: aquasecurity/setup-trivy@v0.2.6
+        with:
+          version: v0.68.2
+          cache: true
+
+      - name: Verify Trivy installation
+        run: |
+          trivy --version
+          which trivy
+
+      #* Generate JSON report
+      - name: Run Trivy image scan (JSON)
+        run: |
+          trivy image sanketmahajan/micro-service-mernapp:client \
+            --format json \
+            --output image-trivy-report.json \
+            --severity HIGH,CRITICAL \
+            --ignore-unfixed \
+            --exit-code 0
+
+      #* Generate TABLE report
+      - name: Run Trivy image scan (TABLE)
+        run: |
+          trivy image sanketmahajan/micro-service-mernapp:client \
+            --format table \
+            --severity HIGH,CRITICAL \
+            --ignore-unfixed \
+            --exit-code 0 > image-trivy-report.txt
+
+      #* Upload JSON report
+      - name: Upload Trivy image JSON report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: client-image-trivy-json-report
+          path: image-trivy-report.json
+          if-no-files-found: warn
+
+      #* Upload TABLE report
+      - name: Upload Trivy image TABLE report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: client-image-trivy-table-report
+          path: image-trivy-report.txt
+          if-no-files-found: warn
+
+      #* =================================*
+      #* Stage: Generate Software Bill of Materials
+      #* =================================*
+
+      #* Generate source SBOM
+      - name: Generate client source SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          path: ./code/client
+          format: spdx-json
+          output-file: client-source-sbom.spdx.json
+          upload-artifact: true
+
+      #* Generate image SBOM
+      - name: Generate client image SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          image: sanketmahajan/micro-service-mernapp:client
+          format: spdx-json
+          output-file: client-image-sbom.spdx.json
+          upload-artifact: true
+
+      #* =================================*
+      #* Stage: Push Docker Image
+      #* =================================*
+      - name: Push client Docker image
+        run: docker push sanketmahajan/micro-service-mernapp:client
