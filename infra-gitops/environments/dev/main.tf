@@ -109,7 +109,10 @@ module "alb_controller" {
 
   project_name = var.project_name
   environment  = var.environment
-
+  providers = {
+    kubernetes = kubernetes
+    helm       = helm
+  }
   cluster_name = module.eks.cluster_name
 
   vpc_id = module.vpc.vpc_id
@@ -138,7 +141,13 @@ module "github_oidc" {
 
   # Replace with your actual GitHub Organization/User and Repository name
   github_repository = "sanketM1996/micro-service-gitops-project"
+  # Replace these placeholders with the actual numeric IDs.
+  github_repository_owner = "sanketM1996"
 
+  # Replace these placeholders with the actual numeric IDs.
+  github_repository_owner_id = "187378906"
+  github_repository_name     = "micro-service-gitops-project"
+  github_repository_id       = "1421755884"
   # Optional: Restrict to a specific branch or environment (e.g., "main")
   # or leave open for all branches if handled via role policies.
   # github_environment = "production"
