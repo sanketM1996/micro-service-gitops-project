@@ -80,3 +80,8 @@ output "alb_controller_helm_release" {
 output "alb_controller_version" {
   value = module.alb_controller.helm_release_version
 }
+
+output "github_actions_role_arn" {
+  description = "IAM role ARN assumed by GitHub Actions"
+  value       = module.github_oidc.role_arn
+}

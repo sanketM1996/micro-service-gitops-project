@@ -1,3 +1,4 @@
+
 name: CI/CD - Client
 
 on:
@@ -6,7 +7,7 @@ on:
       - main
     paths:
       - 'code/client/**'
-      # - '.github/workflows/**'
+      - '.github/workflows/**'
   workflow_dispatch:
 
 permissions:
@@ -22,6 +23,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
       - name: Run Gitleaks Scan
         run: |
           docker run --rm \
@@ -32,6 +34,7 @@ jobs:
             --report-path=/repo/gitleaks-report.json \
             --redact \
             --exit-code 0
+
       - name: Upload Gitleaks report
         if: always()
         uses: actions/upload-artifact@v4
@@ -46,15 +49,21 @@ jobs:
     needs: gitleaks-scan
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: '3.11'
+
       - name: Install Checkov
         run: pip install checkov
+
       - name: Run Checkov Dockerfile scan
         run: |
-          checkov -d code/client --framework dockerfile --output json > checkov-dockerfile-report.json || true
-      - name: Upload report
+          checkov -d code/client \
+            --framework dockerfile \
+            --output json > checkov-dockerfile-report.json || true
+
+      - name: Upload Checkov report
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -68,33 +77,33 @@ jobs:
     needs: gitleaks-scan
     steps:
       - uses: actions/checkout@v4
-      - name: Install Trivy
-        uses: aquasecurity/setup-trivy@v0.2.6
-        with:
-          version: latest
-          cache: true
-      - name: Verify Trivy installation
-        run: |
-          trivy --version
-          which trivy
+
       - name: Run Trivy FS scan (JSON)
         run: |
-          trivy fs "code/client" \
+          docker run --rm \
+            -v "${{ github.workspace }}:/work" \
+            aquasec/trivy:0.68.2 fs \
             --format json \
-            --output "client-trivy-fs-report.json" \
+            --output /work/client-trivy-fs-report.json \
             --scanners vuln,secret,misconfig \
             --severity HIGH,CRITICAL \
             --ignore-unfixed \
-            --exit-code 0
+            --exit-code 0 \
+            /work/code/client
+
       - name: Run Trivy FS scan (TABLE)
         run: |
-          trivy fs "code/client" \
+          docker run --rm \
+            -v "${{ github.workspace }}:/work" \
+            aquasec/trivy:0.68.2 fs \
             --format table \
             --scanners vuln,secret,misconfig \
             --severity HIGH,CRITICAL \
             --ignore-unfixed \
             --exit-code 0 \
-            > "client-trivy-fs-report.txt"
+            /work/code/client \
+            > client-trivy-fs-report.txt
+
       - name: Upload Trivy JSON report
         if: always()
         uses: actions/upload-artifact@v4
@@ -102,6 +111,7 @@ jobs:
           name: client-trivy-fs-json-report
           path: client-trivy-fs-report.json
           if-no-files-found: warn
+
       - name: Upload Trivy table report
         if: always()
         uses: actions/upload-artifact@v4
@@ -121,14 +131,17 @@ jobs:
         working-directory: code/client
     steps:
       - uses: actions/checkout@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: npm
           cache-dependency-path: code/client/package-lock.json
+
       - name: Install dependencies
         run: npm ci
+
       - name: Run lint
         run: npm run lint --if-present
         continue-on-error: true
@@ -143,14 +156,17 @@ jobs:
     steps:
       - name: Checkout source code
         uses: actions/checkout@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: npm
           cache-dependency-path: code/client/package-lock.json
+
       - name: Install dependencies
         run: npm ci
+
       - name: Run tests
         run: |
           if node -e "process.exit(require('./package.json').scripts?.test ? 0 : 1)"; then
@@ -171,6 +187,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
       - name: SonarQube Scan
         uses: sonarsource/sonarqube-scan-action@master
         with:
@@ -178,6 +195,7 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+
       - name: SonarQube Quality Gate Check
         id: quality-gate
         continue-on-error: true
@@ -188,26 +206,22 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+
       - name: Display Quality Gate Status
         if: always()
         run: |
           echo "Service: client"
           echo "Quality Gate status: ${{ steps.quality-gate.outputs.quality-gate-status }}"
 
- 
-  
-  #* =================================*
-  #* Stage: Build React application
-  #* =================================*
   client-build:
     name: Client Build
     runs-on: ubuntu-latest
-    needs: client-test
-
+    needs:
+      - client-test
+      - sonarqube
     defaults:
       run:
         working-directory: code/client
-
     steps:
       - name: Checkout source code
         uses: actions/checkout@v4
@@ -224,36 +238,29 @@ jobs:
 
       - name: Build client
         run: npm run build
+        env:
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
 
-  #* =================================*
-  #* Stage: Docker Build, Scan and Push
-  #* =================================*
   docker:
-    name: Client Docker Build, Scan & Push
+    name: Client Docker Build, Scan, SBOM and Push
     runs-on: ubuntu-latest
     needs: client-build
-
     steps:
       - name: Checkout source code
         uses: actions/checkout@v4
 
-      #* Login to Docker Hub
       - name: Login to Docker Hub
         uses: docker/login-action@v4
         with:
           username: ${{ vars.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      #* Configure Docker Buildx
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
-      #* =================================*
-      #* Stage: Build Client Docker Image
-      #* =================================*
       - name: Build client Docker image
         uses: docker/build-push-action@v7
         with:
@@ -263,68 +270,61 @@ jobs:
           push: false
           build-args: |
             VITE_API_BASE_URL=${{ vars.VITE_API_BASE_URL }}
-          tags: sanketmahajan/micro-service-mernapp:client
+          tags: |
+            sanketmahajan/micro-service-mernapp:client
+            sanketmahajan/micro-service-mernapp:${{ github.sha }}
 
-      - name: Verify Docker image
+      - name: Verify Docker images
         run: |
           docker image inspect sanketmahajan/micro-service-mernapp:client
+          docker image inspect sanketmahajan/micro-service-mernapp:${GITHUB_SHA}
 
-      #* =================================*
-      #* Stage: Trivy Image Security Scan
-      #* =================================*
+      - name: Save client image for Trivy scanning
+        run: |
+          docker save \
+            sanketmahajan/micro-service-mernapp:client \
+            -o client-image.tar
 
-      #* Generate JSON report
       - name: Run Trivy image scan (JSON)
         run: |
           docker run --rm \
-            -v /var/run/docker.sock:/var/run/docker.sock \
-            -v "$HOME/.cache/trivy:/root/.cache/" \
-            -v "$PWD:/report" \
+            -v "${{ github.workspace }}:/scan" \
             aquasec/trivy:0.68.2 image \
+            --input /scan/client-image.tar \
             --format json \
-            --output /report/image-trivy-report.json \
+            --output /scan/client-image-trivy-report.json \
             --severity HIGH,CRITICAL \
             --ignore-unfixed \
-            --exit-code 0 \
-            sanketmahajan/micro-service-mernapp:client
+            --exit-code 0
 
-      #* Generate TABLE report
       - name: Run Trivy image scan (TABLE)
         run: |
           docker run --rm \
-            -v /var/run/docker.sock:/var/run/docker.sock \
-            -v "$HOME/.cache/trivy:/root/.cache/" \
+            -v "${{ github.workspace }}:/scan" \
             aquasec/trivy:0.68.2 image \
+            --input /scan/client-image.tar \
             --format table \
             --severity HIGH,CRITICAL \
             --ignore-unfixed \
             --exit-code 0 \
-            sanketmahajan/micro-service-mernapp:client \
-            > image-trivy-report.txt
+            > client-image-trivy-report.txt
 
-      #* Upload JSON report
       - name: Upload Trivy image JSON report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: client-image-trivy-json-report
-          path: image-trivy-report.json
+          path: client-image-trivy-report.json
           if-no-files-found: warn
 
-      #* Upload TABLE report
-      - name: Upload Trivy image TABLE report
+      - name: Upload Trivy image table report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: client-image-trivy-table-report
-          path: image-trivy-report.txt
+          path: client-image-trivy-report.txt
           if-no-files-found: warn
 
-      #* =================================*
-      #* Stage: Generate Software Bill of Materials
-      #* =================================*
-
-      #* Generate source SBOM
       - name: Generate client source SBOM
         uses: anchore/sbom-action@v0
         with:
@@ -333,7 +333,6 @@ jobs:
           output-file: client-source-sbom.spdx.json
           upload-artifact: true
 
-      #* Generate image SBOM
       - name: Generate client image SBOM
         uses: anchore/sbom-action@v0
         with:
@@ -342,8 +341,124 @@ jobs:
           output-file: client-image-sbom.spdx.json
           upload-artifact: true
 
-      #* =================================*
-      #* Stage: Push Docker Image
-      #* =================================*
-      - name: Push client Docker image
-        run: docker push sanketmahajan/micro-service-mernapp:client
+      - name: Upload SBOM reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: client-sbom-reports
+          path: |
+            client-source-sbom.spdx.json
+            client-image-sbom.spdx.json
+          if-no-files-found: warn
+
+      - name: Push client Docker images
+        run: |
+          docker push sanketmahajan/micro-service-mernapp:client
+          docker push sanketmahajan/micro-service-mernapp:${GITHUB_SHA}
+
+  update-main-manifest:
+    name: Update Main Branch Frontend Manifest
+    runs-on: ubuntu-latest
+    needs: docker
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout main branch
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          token: ${{ secrets.TOKEN_GITHUB_PAT }}
+
+      - name: Update frontend image tag
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          MANIFEST="k8-manifests/main/frontend.yaml"
+
+          if [ ! -f "$MANIFEST" ]; then
+            echo "Manifest not found: $MANIFEST"
+            exit 1
+          fi
+
+          sed -i \
+            "s|image: sanketmahajan/micro-service-mernapp:.*|image: sanketmahajan/micro-service-mernapp:${IMAGE_TAG}|" \
+            "$MANIFEST"
+
+          echo "Updated image:"
+          grep "image:" "$MANIFEST"
+
+      - name: Commit and push manifest
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add k8-manifests/main/frontend.yaml
+
+          git commit -m "Update frontend image to ${GITHUB_SHA} [skip ci]" \
+            || echo "No manifest changes to commit"
+
+          git push origin main
+
+  deploy-to-k8s:
+    name: Deploy Frontend to Amazon EKS
+    runs-on: ubuntu-latest
+    needs: update-main-manifest
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      AWS_REGION: ap-south-1
+      EKS_CLUSTER_NAME: todo-microservice-dev-eks
+      K8S_NAMESPACE: todo-app
+    steps:
+      - name: Checkout latest main branch
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          token: ${{ secrets.TOKEN_GITHUB_PAT }}
+
+      - name: Configure AWS credentials using GitHub OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Generate kubeconfig for EKS
+        run: |
+          aws eks update-kubeconfig \
+            --region "${AWS_REGION}" \
+            --name "${EKS_CLUSTER_NAME}"
+
+      - name: Verify AWS identity
+        run: |
+          aws sts get-caller-identity
+          kubectl config current-context
+
+      - name: Verify namespace and access
+        run: |
+          kubectl get namespace "${K8S_NAMESPACE}"
+          kubectl auth can-i get deployments -n "${K8S_NAMESPACE}"
+          kubectl auth can-i patch deployments -n "${K8S_NAMESPACE}"
+          kubectl auth can-i create services -n "${K8S_NAMESPACE}"
+
+      - name: Apply frontend manifest
+        run: |
+          kubectl apply \
+            -f k8-manifests/main/frontend.yaml \
+            -n "${K8S_NAMESPACE}"
+
+      - name: Verify frontend rollout
+        run: |
+          kubectl rollout status deployment/frontend \
+            -n "${K8S_NAMESPACE}" \
+            --timeout=180s
+
+      - name: Verify frontend resources
+        if: success()
+        run: |
+          kubectl get deployment frontend -n "${K8S_NAMESPACE}"
+          kubectl get pods -l app=frontend -n "${K8S_NAMESPACE}"
+          kubectl get service frontend-service -n "${K8S_NAMESPACE}"

@@ -1,24 +1,29 @@
-data "aws_iam_openid_connect_provider" "github" {
-  url = "https://token.actions.githubusercontent.com"
-}
 
-# If the OIDC provider doesn't exist in your account yet, uncomment the resource below 
-# and comment out the data source above. (Only one OIDC provider per AWS account is needed).
-/*
 resource "aws_iam_openid_connect_provider" "github" {
-  url             = "https://token.actions.githubusercontent.com"
-  client_id_list  = ["sts.amazonaws.com"]
-  thumbprint_list = ["6938fd4d98bab03faadb97b34396831e3780aea1"] # GitHub's standard thumbprint
+  url = "https://token.actions.githubusercontent.com"
+
+  client_id_list = [
+    "sts.amazonaws.com"
+  ]
+
+  # GitHub Actions OIDC certificate thumbprint
+  thumbprint_list = [
+    "6938fd4d98bab03faadb97b34396831e3780aea1"
+  ]
+
+  tags = var.tags
 }
-*/
 
 data "aws_iam_policy_document" "github_assume_role" {
   statement {
     actions = ["sts:AssumeRoleWithWebIdentity"]
 
     principals {
-      type        = "Federated"
-      identifiers = [data.aws_iam_openid_connect_provider.github.arn]
+      type = "Federated"
+
+      identifiers = [
+        aws_iam_openid_connect_provider.github.arn
+      ]
     }
 
     condition {
@@ -30,7 +35,10 @@ data "aws_iam_policy_document" "github_assume_role" {
     condition {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${var.github_repository}:*"]
+
+      values = [
+        "repo:${var.github_repository}:*"
+      ]
     }
   }
 }
@@ -42,7 +50,7 @@ resource "aws_iam_role" "github_actions" {
   tags = var.tags
 }
 
-# Attach AdministratorAccess or a custom scoped policy for Terraform deployments
+# Attach AdministratorAccess or a custom scoped policy.
 resource "aws_iam_role_policy_attachment" "admin_access" {
   role       = aws_iam_role.github_actions.name
   policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
