@@ -411,34 +411,6 @@ jobs:
       EKS_CLUSTER_NAME: todo-microservice-dev-eks
       K8S_NAMESPACE: todo-app
     steps:
-      - name: Inspect OIDC claims safely
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          TOKEN_RESPONSE=$(curl -fsS \
-            -H "Authorization: Bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
-            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=sts.amazonaws.com")
-
-          OIDC_TOKEN=$(echo "$TOKEN_RESPONSE" | jq -r '.value')
-
-          if [ -z "$OIDC_TOKEN" ] || [ "$OIDC_TOKEN" = "null" ]; then
-            echo "Failed to retrieve OIDC token"
-            exit 1
-          fi
-
-          PAYLOAD=$(echo "$OIDC_TOKEN" | cut -d '.' -f 2 | tr '_-' '/+')
-          PAYLOAD="${PAYLOAD}$(printf '%*s' "$(( (4 - ${#PAYLOAD} % 4) % 4 ))" '' | tr ' ' '=')"
-
-          echo "$PAYLOAD" | base64 -d | jq '{iss, aud, sub}'
-
-          unset OIDC_TOKEN TOKEN_RESPONSE PAYLOAD
-      - name: Verify GitHub OIDC context
-        run: |
-          echo "Repository: $GITHUB_REPOSITORY"
-          echo "Ref: $GITHUB_REF"
-          echo "Event: $GITHUB_EVENT_NAME"
-          echo "Expected role: ${{ secrets.AWS_ROLE_TO_ASSUME }}"
       - name: Checkout latest main branch
         uses: actions/checkout@v4
         with:
@@ -448,7 +420,7 @@ jobs:
       - name: Configure AWS credentials using GitHub OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          role-to-assume: arn:aws:iam::932542905800:role/micro-service-app-dev-github-actions-role
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Setup kubectl
