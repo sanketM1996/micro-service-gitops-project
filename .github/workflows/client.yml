@@ -195,6 +195,7 @@ jobs:
           echo "Quality Gate status: ${{ steps.quality-gate.outputs.quality-gate-status }}"
 
  
+  
   #* =================================*
   #* Stage: Build React application
   #* =================================*
@@ -264,38 +265,42 @@ jobs:
             VITE_API_BASE_URL=${{ vars.VITE_API_BASE_URL }}
           tags: sanketmahajan/micro-service-mernapp:client
 
+      - name: Verify Docker image
+        run: |
+          docker image inspect sanketmahajan/micro-service-mernapp:client
+
       #* =================================*
       #* Stage: Trivy Image Security Scan
       #* =================================*
-      - name: Install Trivy
-        uses: aquasecurity/setup-trivy@v0.2.6
-        with:
-          version: v0.68.2
-          cache: true
-
-      - name: Verify Trivy installation
-        run: |
-          trivy --version
-          which trivy
 
       #* Generate JSON report
       - name: Run Trivy image scan (JSON)
         run: |
-          trivy image sanketmahajan/micro-service-mernapp:client \
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "$HOME/.cache/trivy:/root/.cache/" \
+            -v "$PWD:/report" \
+            aquasec/trivy:0.68.2 image \
             --format json \
-            --output image-trivy-report.json \
+            --output /report/image-trivy-report.json \
             --severity HIGH,CRITICAL \
             --ignore-unfixed \
-            --exit-code 0
+            --exit-code 0 \
+            sanketmahajan/micro-service-mernapp:client
 
       #* Generate TABLE report
       - name: Run Trivy image scan (TABLE)
         run: |
-          trivy image sanketmahajan/micro-service-mernapp:client \
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "$HOME/.cache/trivy:/root/.cache/" \
+            aquasec/trivy:0.68.2 image \
             --format table \
             --severity HIGH,CRITICAL \
             --ignore-unfixed \
-            --exit-code 0 > image-trivy-report.txt
+            --exit-code 0 \
+            sanketmahajan/micro-service-mernapp:client \
+            > image-trivy-report.txt
 
       #* Upload JSON report
       - name: Upload Trivy image JSON report
