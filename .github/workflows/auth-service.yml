@@ -7,7 +7,7 @@ on:
       - main
     paths:
       - 'code/auth-service/**'
-      - '.github/workflows/**'
+      # - '.github/workflows/**'
   workflow_dispatch:
 
 permissions:
