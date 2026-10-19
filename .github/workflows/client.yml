@@ -447,7 +447,7 @@ jobs:
       - name: Apply frontend manifest
         run: |
           kubectl apply \
-            -f k8-manifests/main/frontend.yaml \
+            -f k8-manifests/frontend.yaml \
             -n "${K8S_NAMESPACE}"
 
       - name: Verify frontend rollout
