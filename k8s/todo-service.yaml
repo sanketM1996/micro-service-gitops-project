@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
       - name: todo-service
-        image: sanketmahajan/mern-micro-service-todo-app:todo-service
+        image: sanketmahajan/micro-service-mernapp:todo-service
         imagePullPolicy: Always
         ports:
         - containerPort: 4002

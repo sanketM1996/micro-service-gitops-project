@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
       - name: frontend
-        image: sanketmahajan/mern-micro-service-todo-app:client
+        image: sanketmahajan/micro-service-mernapp:client
         imagePullPolicy: Always
         ports:
         - containerPort: 80
