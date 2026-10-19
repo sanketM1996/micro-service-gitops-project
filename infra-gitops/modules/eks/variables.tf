@@ -103,3 +103,11 @@ variable "ebs_csi_role_arn" {
   description = "IAM Role ARN for EBS CSI Pod Identity"
   type        = string
 }
+variable "github_actions_role_arn" {
+  type        = string
+  description = "ARN of the GitHub Actions IAM role"
+}
+variable "admin_principal_arn" {
+  type        = string
+  description = "ARN of the IAM user or role running Terraform to grant cluster admin access"
+}

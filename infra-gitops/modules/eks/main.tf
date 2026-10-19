@@ -7,6 +7,11 @@ resource "aws_eks_cluster" "this" {
   role_arn = var.cluster_role_arn
   version  = var.kubernetes_version
 
+  # Enable API and ConfigMap authentication mode for access entries
+  access_config {
+    authentication_mode = "API_AND_CONFIG_MAP"
+  }
+
   vpc_config {
     subnet_ids = var.private_subnet_ids
 
@@ -153,6 +158,7 @@ resource "aws_eks_pod_identity_association" "ebs_csi" {
     aws_eks_node_group.this
   ]
 }
+
 # =========================================================
 # EBS CSI DRIVER
 # =========================================================
@@ -172,6 +178,7 @@ resource "aws_eks_addon" "ebs_csi" {
 
   tags = var.tags
 }
+
 resource "aws_eks_addon" "pod_identity_agent" {
   cluster_name = aws_eks_cluster.this.name
   addon_name   = "eks-pod-identity-agent"
@@ -184,4 +191,63 @@ resource "aws_eks_addon" "pod_identity_agent" {
   ]
 
   tags = var.tags
+}
+
+
+# =========================================================
+# EKS ACCESS ENTRY FOR GITHUB ACTIONS ROLE
+# =========================================================
+
+resource "aws_eks_access_entry" "github_actions" {
+  cluster_name  = aws_eks_cluster.this.name
+  principal_arn = var.github_actions_role_arn
+  type          = "STANDARD"
+
+  depends_on = [
+    aws_eks_cluster.this
+  ]
+}
+
+resource "aws_eks_access_policy_association" "github_actions_admin" {
+  cluster_name  = aws_eks_cluster.this.name
+  principal_arn = var.github_actions_role_arn
+  policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSAdminPolicy"
+
+  access_scope {
+    type       = "namespace"
+    namespaces = ["todo-app"]
+  }
+
+  depends_on = [
+    aws_eks_access_entry.github_actions
+  ]
+}
+
+
+# =========================================================
+# EKS ACCESS ENTRY FOR TERRAFORM ADMIN RUNNER
+# =========================================================
+
+resource "aws_eks_access_entry" "terraform_admin" {
+  cluster_name  = aws_eks_cluster.this.name
+  principal_arn = var.admin_principal_arn
+  type          = "STANDARD"
+
+  depends_on = [
+    aws_eks_cluster.this
+  ]
+}
+
+resource "aws_eks_access_policy_association" "terraform_admin_policy" {
+  cluster_name  = aws_eks_cluster.this.name
+  principal_arn = var.admin_principal_arn
+  policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+
+  access_scope {
+    type = "cluster"
+  }
+
+  depends_on = [
+    aws_eks_access_entry.terraform_admin
+  ]
 }

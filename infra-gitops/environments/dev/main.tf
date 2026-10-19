@@ -33,6 +33,7 @@ module "vpc" {
     ManagedBy = "Terraform"
   }
 }
+data "aws_caller_identity" "current" {}
 module "iam" {
   source = "../../modules/iam"
 
@@ -66,8 +67,9 @@ module "eks" {
   project_name = var.project_name
   environment  = var.environment
 
-  cluster_name       = "${var.project_name}-${var.environment}-eks"
-  kubernetes_version = "1.33"
+  cluster_name            = "${var.project_name}-${var.environment}-eks"
+  kubernetes_version      = "1.33"
+  github_actions_role_arn = module.github_oidc.role_arn
 
   vpc_id = module.vpc.vpc_id
 
@@ -75,8 +77,8 @@ module "eks" {
 
   cluster_role_arn = module.iam.eks_cluster_role_arn
 
-  node_role_arn = module.iam.node_role_arn
-
+  node_role_arn          = module.iam.node_role_arn
+  admin_principal_arn    = data.aws_caller_identity.current.arn
   node_security_group_id = module.security_groups.eks_node_security_group_id
   ebs_csi_role_arn       = module.iam.ebs_csi_role_arn
   node_instance_types = [
