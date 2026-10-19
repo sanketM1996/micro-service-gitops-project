@@ -411,6 +411,12 @@ jobs:
       EKS_CLUSTER_NAME: todo-microservice-dev-eks
       K8S_NAMESPACE: todo-app
     steps:
+      - name: Verify GitHub OIDC context
+        run: |
+          echo "Repository: $GITHUB_REPOSITORY"
+          echo "Ref: $GITHUB_REF"
+          echo "Event: $GITHUB_EVENT_NAME"
+          echo "Expected role: ${{ secrets.AWS_ROLE_TO_ASSUME }}"
       - name: Checkout latest main branch
         uses: actions/checkout@v4
         with:

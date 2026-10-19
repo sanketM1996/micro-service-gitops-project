@@ -135,7 +135,7 @@ module "github_oidc" {
   environment  = var.environment
 
   # Replace with your actual GitHub Organization/User and Repository name
-  github_repository = "https://github.com/sanketM1996/micro-service-gitops-project.git"
+  github_repository = "sanketM1996/micro-service-gitops-project"
 
   # Optional: Restrict to a specific branch or environment (e.g., "main")
   # or leave open for all branches if handled via role policies.
