@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
       - name: frontend
-        image: sanketmahajan/micro-service-mernapp:6458c4c38e2dc8042809f12d6d00d6daac235945
+        image: sanketmahajan/micro-service-mernapp:53dbec4c83423116fbc28384f4e1f1d2c67e1118
         imagePullPolicy: Always
         ports:
         - containerPort: 80
