@@ -7,7 +7,7 @@ on:
       - main
     paths:
       - 'code/api-gateway/**'
-      # - '.github/workflows/**'
+      - '.github/workflows/**'
   workflow_dispatch:
 
 permissions:
@@ -15,14 +15,9 @@ permissions:
   security-events: write
 
 jobs:
-
-  #* =================================*
-  #* Stage: Gitleaks Secret Scan
-  #* =================================*
   gitleaks-scan:
     name: Gitleaks Scan
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout source code
         uses: actions/checkout@v4
@@ -48,14 +43,10 @@ jobs:
           path: gitleaks-report.json
           if-no-files-found: warn
 
-  #* =================================*
-  #* Stage: Checkov Dockerfile Scan
-  #* =================================*
   checkov-dockerfile:
     name: Checkov Dockerfile Scan
     runs-on: ubuntu-latest
     needs: gitleaks-scan
-
     steps:
       - uses: actions/checkout@v4
 
@@ -72,7 +63,7 @@ jobs:
             --framework dockerfile \
             --output json > checkov-dockerfile-report.json || true
 
-      - name: Upload report
+      - name: Upload Checkov report
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -80,19 +71,12 @@ jobs:
           path: checkov-dockerfile-report.json
           if-no-files-found: warn
 
-  #* =================================*
-  #* Stage: Trivy Filesystem Scan
-  #* =================================*
   trivy-scan:
-    name: Trivy FS Scan - api-gateway
+    name: Trivy FS Scan - client
     runs-on: ubuntu-latest
     needs: gitleaks-scan
-
     steps:
       - uses: actions/checkout@v4
-
-      - name: Verify Trivy container
-        run: docker run --rm aquasec/trivy:0.68.2 --version
 
       - name: Run Trivy FS scan (JSON)
         run: |
@@ -110,252 +94,118 @@ jobs:
       - name: Run Trivy FS scan (TABLE)
         run: |
           docker run --rm \
-            -v "${{ github.workspace }}:/work" \
-            aquasec/trivy:0.68.2 fs \
-            --format table \
-            --scanners vuln,secret,misconfig \
-            --severity HIGH,CRITICAL \
-            --ignore-unfixed \
-            --exit-code 0 \
-            /work/code/api-gateway \
-            > api-gateway-trivy-fs-report.txt
-
-      - name: Upload Trivy JSON report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: api-gateway-trivy-fs-json-report
-          path: api-gateway-trivy-fs-report.json
-          if-no-files-found: warn
-
-      - name: Upload Trivy table report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: api-gateway-trivy-fs-table-report
-          path: api-gateway-trivy-fs-report.txt
-          if-no-files-found: warn
-
-  #* =================================*
-  #* Stage: API Gateway Lint
-  #* =================================*
-  lint:
-    name: Lint - api-gateway
+  
+  update-main-manifest:
+    name: Update Main Branch API Gateway Manifest
     runs-on: ubuntu-latest
-    needs:
-      - trivy-scan
-      - checkov-dockerfile
-
-    defaults:
-      run:
-        working-directory: code/api-gateway
+    needs: docker
+    permissions:
+      contents: write
 
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: npm
-          cache-dependency-path: code/api-gateway/package-lock.json
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run lint
-        run: npm run lint --if-present
-        continue-on-error: true
-
-  #* =================================*
-  #* Stage: API Gateway Tests
-  #* =================================*
-  api-gateway-test:
-    name: Server Test
-    runs-on: ubuntu-latest
-    needs: lint
-
-    defaults:
-      run:
-        working-directory: code/api-gateway
-
-    steps:
-      - name: Checkout source code
+      - name: Checkout main branch
         uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
         with:
-          node-version: '22'
-          cache: npm
-          cache-dependency-path: code/api-gateway/package-lock.json
+          ref: main
+          token: ${{ secrets.TOKEN_GITHUB_PAT }}
 
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run tests
+      - name: Update API Gateway image tag
+        env:
+          IMAGE_TAG: ${{ github.sha }}
         run: |
-          if node -e "process.exit(require('./package.json').scripts?.test ? 0 : 1)"; then
-            if grep -q 'no test specified' package.json; then
-              echo "No tests configured yet. Skipping tests."
-            else
-              npm test
-            fi
-          else
-            echo "No test script found. Skipping tests."
+          MANIFEST="k8-manifests/api-gateway.yaml"
+
+          if [ ! -f "$MANIFEST" ]; then
+            echo "Manifest not found: $MANIFEST"
+            exit 1
           fi
 
-  #* =================================*
-  #* Stage: SonarQube Analysis
-  #* =================================*
-  sonarqube:
-    name: SonarQube Analysis - api-gateway
-    runs-on: ubuntu-latest
-    needs: api-gateway-test
+          grep -q 'image: sanketmahajan/micro-service-mernapp:' "$MANIFEST" || {
+            echo "API Gateway image not found in $MANIFEST"
+            exit 1
+          }
 
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+          sed -i \
+            "s|image: sanketmahajan/micro-service-mernapp:.*|image: sanketmahajan/micro-service-mernapp:${IMAGE_TAG}|" \
+            "$MANIFEST"
 
-      - name: SonarQube Scan
-        uses: sonarsource/sonarqube-scan-action@master
-        with:
-          projectBaseDir: code/api-gateway
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+          echo "Updated API Gateway image:"
+          grep "image:" "$MANIFEST"
 
-      - name: SonarQube Quality Gate Check
-        id: quality-gate
-        continue-on-error: true
-        uses: sonarsource/sonarqube-quality-gate-action@master
-        with:
-          scanMetadataReportFile: code/api-gateway/.scannerwork/report-task.txt
-          pollingTimeoutSec: 600
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-
-      - name: Display Quality Gate Status
-        if: always()
+      - name: Commit and push manifest
         run: |
-          echo "Service: api-gateway"
-          echo "Quality Gate status: ${{ steps.quality-gate.outputs.quality-gate-status }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-  #* =================================*
-  #* Stage: Docker Build, Scan and Push
-  #* =================================*
-  docker:
-    name: API Gateway Docker Build, Scan & Push
+          git add k8-manifests/api-gateway.yaml
+
+          git commit -m "Update API Gateway image to ${GITHUB_SHA} [skip ci]" \
+            || echo "No manifest changes to commit"
+
+          git push origin main
+
+  deploy-to-k8s:
+    name: Deploy API Gateway to Amazon EKS
     runs-on: ubuntu-latest
-    needs: sonarqube
+    needs: update-main-manifest
+
+    permissions:
+      contents: read
+      id-token: write
+
+    env:
+      AWS_REGION: ap-south-1
+      EKS_CLUSTER_NAME: todo-microservice-dev-eks
+      K8S_NAMESPACE: todo-app
 
     steps:
-      - name: Checkout source code
+      - name: Checkout latest main branch
         uses: actions/checkout@v4
-
-      #* Login to Docker Hub
-      - name: Login to Docker Hub
-        uses: docker/login-action@v4
         with:
-          username: ${{ vars.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          ref: main
+          token: ${{ secrets.TOKEN_GITHUB_PAT }}
 
-      #* Configure Docker Buildx
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
-
-      #* =================================*
-      #* Stage: Build API Gateway Image
-      #* =================================*
-      - name: Build api-gateway Docker image
-        uses: docker/build-push-action@v7
+      - name: Configure AWS credentials using GitHub OIDC
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          context: ./code/api-gateway
-          file: ./code/api-gateway/Dockerfile
-          load: true
-          push: false
-          tags: sanketmahajan/micro-service-mernapp:api-gateway
+          role-to-assume: arn:aws:iam::932542905800:role/todo-microservice-dev-github-actions-role
+          aws-region: ${{ env.AWS_REGION }}
 
-      - name: Verify Docker image
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Generate kubeconfig for EKS
         run: |
-          docker image inspect sanketmahajan/micro-service-mernapp:api-gateway
+          aws eks update-kubeconfig \
+            --region "${AWS_REGION}" \
+            --name "${EKS_CLUSTER_NAME}"
 
-      #* =================================*
-      #* Stage: Trivy Image Security Scan
-      #* =================================*
-      - name: Save Docker image for Trivy
+      - name: Verify AWS identity
         run: |
-          docker save \
-            sanketmahajan/micro-service-mernapp:api-gateway \
-            -o api-gateway-image.tar
+          aws sts get-caller-identity
+          kubectl config current-context
 
-      - name: Run Trivy image scan (JSON)
+      - name: Verify namespace and access
         run: |
-          docker run --rm \
-            -v "${{ github.workspace }}:/scan" \
-            aquasec/trivy:0.68.2 image \
-            --input /scan/api-gateway-image.tar \
-            --format json \
-            --output /scan/api-gateway-image-trivy-report.json \
-            --severity HIGH,CRITICAL \
-            --ignore-unfixed \
-            --exit-code 0
+          kubectl get namespace "${K8S_NAMESPACE}"
+          kubectl auth can-i get deployments -n "${K8S_NAMESPACE}"
+          kubectl auth can-i patch deployments -n "${K8S_NAMESPACE}"
 
-      - name: Run Trivy image scan (TABLE)
+      - name: Apply API Gateway manifest
         run: |
-          docker run --rm \
-            -v "${{ github.workspace }}:/scan" \
-            aquasec/trivy:0.68.2 image \
-            --input /scan/api-gateway-image.tar \
-            --format table \
-            --severity HIGH,CRITICAL \
-            --ignore-unfixed \
-            --exit-code 0 \
-            > api-gateway-image-trivy-report.txt
+          kubectl apply \
+            -f k8-manifests/api-gateway.yaml \
+            -n "${K8S_NAMESPACE}"
 
-      - name: Upload Trivy image JSON report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: api-gateway-image-trivy-json-report
-          path: api-gateway-image-trivy-report.json
-          if-no-files-found: warn
-
-      - name: Upload Trivy image TABLE report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: api-gateway-image-trivy-table-report
-          path: api-gateway-image-trivy-report.txt
-          if-no-files-found: warn
-
-      #* =================================*
-      #* Stage: Generate Software Bill of Materials
-      #* =================================*
-      - name: Generate api-gateway source SBOM
-        uses: anchore/sbom-action@v0
-        with:
-          path: ./code/api-gateway
-          format: spdx-json
-          output-file: api-gateway-source-sbom.spdx.json
-          upload-artifact: true
-
-      - name: Generate api-gateway image SBOM
-        uses: anchore/sbom-action@v0
-        with:
-          image: sanketmahajan/micro-service-mernapp:api-gateway
-          format: spdx-json
-          output-file: api-gateway-image-sbom.spdx.json
-          upload-artifact: true
-
-      #* =================================*
-      #* Stage: Push Docker Image
-      #* =================================*
-      - name: Push api-gateway Docker image
+      - name: Verify API Gateway rollout
         run: |
-          docker push sanketmahajan/micro-service-mernapp:api-gateway
+          kubectl rollout status deployment/api-gateway \
+            -n "${K8S_NAMESPACE}" \
+            --timeout=180s
+
+      - name: Verify API Gateway resources
+        if: success()
+        run: |
+          kubectl get deployment api-gateway -n "${K8S_NAMESPACE}"
+          kubectl get pods -l app=api-gateway -n "${K8S_NAMESPACE}"
+          kubectl get services -n "${K8S_NAMESPACE}"
