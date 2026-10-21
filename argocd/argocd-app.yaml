@@ -1,0 +1,22 @@
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: todo-app
+  namespace: argocd
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/sanketM1996/micro-service-gitops-project.git
+    targetRevision: main
+    path: k8-manifests
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: todo-app
+
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
