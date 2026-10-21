@@ -142,9 +142,7 @@ export const Register = () => {
                 aria-label="Visit Instagram profile @devwithsanket"
                 className="flex items-center gap-2 rounded-full border border-pink-500/30 bg-pink-500/10 px-3 py-2 text-sm font-semibold text-pink-300 transition hover:bg-pink-500/20"
               >
-                <span className="flex h-6 w-6 items-center justify-center rounded-lg border-2 border-white text-xs font-bold text-white">
-                  IG
-                </span>
+                <span className="text-xs font-bold">IG</span>
                 @devwithsanket
               </a>
             </div>
@@ -309,7 +307,7 @@ export const Register = () => {
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 font-semibold text-pink-400 transition hover:text-pink-300 hover:underline"
                 >
-                  <Instagram className="h-3.5 w-3.5" />
+                  <span className="text-[10px] font-bold">IG</span>
                   @devwithsanket
                   <ArrowUpRight className="h-3 w-3" />
                 </a>
