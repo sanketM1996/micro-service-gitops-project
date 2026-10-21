@@ -7,7 +7,6 @@ import {
   User,
   ShieldAlert,
   CheckCircle2,
-  Instagram,
   ArrowUpRight,
   Sparkles,
 } from 'lucide-react';
@@ -108,7 +107,9 @@ export const Register = () => {
             >
               <div className="flex min-w-0 items-center gap-3">
                 <div className="rounded-xl bg-gradient-to-br from-pink-500 via-rose-500 to-amber-400 p-2.5 shadow-lg">
-                  <Instagram className="h-6 w-6 text-white" />
+                 <span className="flex h-6 w-6 items-center justify-center rounded-lg border-2 border-white text-xs font-bold text-white">
+  IG
+</span>
                 </div>
                 <div className="min-w-0">
                   <p className="text-xs text-indigo-100/80">
@@ -141,7 +142,9 @@ export const Register = () => {
                 aria-label="Visit Instagram profile @devwithsanket"
                 className="flex items-center gap-2 rounded-full border border-pink-500/30 bg-pink-500/10 px-3 py-2 text-sm font-semibold text-pink-300 transition hover:bg-pink-500/20"
               >
-                <Instagram className="h-4 w-4" />
+                <span className="flex h-6 w-6 items-center justify-center rounded-lg border-2 border-white text-xs font-bold text-white">
+                  IG
+                </span>
                 @devwithsanket
               </a>
             </div>
