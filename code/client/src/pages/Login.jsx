@@ -48,9 +48,6 @@ export const Login = () => {
 
             <h2 className="text-3xl font-extrabold tracking-tight text-white">
               Welcome Back
-              <span className="mt-1 block bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">
-                Sanket
-              </span>
             </h2>
 
             <p className="mt-3 max-w-xs text-sm leading-6 text-gray-400">
